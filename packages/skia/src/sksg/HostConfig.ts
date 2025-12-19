@@ -7,7 +7,7 @@ import type { NodeType } from "../dom/types";
 import { shallowEq } from "../renderer/typeddash";
 
 import type { Node } from "./Node";
-import type { Container } from "./Container";
+import type { Container } from "./StaticContainer";
 
 type EventPriority = number;
 const NoEventPriority = 0;
@@ -177,10 +177,8 @@ export const sksgHostConfig: SkiaHostConfig = {
     _type,
     _oldProps,
     newProps,
-    _updatePayload,
-    _internalInstanceHandle,
-    keepChildren: boolean,
-    _recyclableInstance: null | Instance
+    keepChildren,
+    _newChildSet
   ) {
     debug("cloneInstance");
     return {

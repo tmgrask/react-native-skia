@@ -51,6 +51,7 @@
 #include "JsiSkTypefaceFontProviderFactory.h"
 #include "JsiSkVertices.h"
 #include "JsiSkiaContext.h"
+#include "JsiSkottieFactory.h"
 #include "JsiVideo.h"
 #include "recorder/JsiRecorder.h"
 
@@ -60,6 +61,10 @@ namespace jsi = facebook::jsi;
 
 class JsiSkApi : public JsiSkHostObject {
 public:
+  size_t getMemoryPressure() const override { return 8192; }
+
+  std::string getObjectType() const override { return "JsiSkApi"; }
+
   /**
    * Constructs the Skia Api object that can be installed into a runtime
    * and provide functions for accessing and creating the Skia wrapper objects
@@ -121,6 +126,8 @@ public:
                             std::make_shared<JsiSkPictureFactory>(context));
     installReadonlyProperty("FontMgr",
                             std::make_shared<JsiSkFontMgrFactory>(context));
+    installReadonlyProperty("Skottie",
+                            std::make_shared<JsiSkottieFactory>(context));
     installReadonlyProperty(
         "TypefaceFontProvider",
         std::make_shared<JsiSkTypefaceFontProviderFactory>(context));

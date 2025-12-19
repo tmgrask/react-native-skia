@@ -8,9 +8,10 @@
 #include <thread>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "RNSkVideo.h"
-#include "WindowContext.h"
+#include "RNWindowContext.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdocumentation"
@@ -105,21 +106,38 @@ public:
    */
   virtual sk_sp<SkImage> makeImageFromNativeBuffer(void *buffer) = 0;
 
+#if !defined(SK_GRAPHITE)
   virtual sk_sp<SkImage>
   makeImageFromNativeTexture(const TextureInfo &textureInfo, int width,
                              int height, bool mipMapped) = 0;
 
-#if !defined(SK_GRAPHITE)
+  virtual const TextureInfo getTexture(sk_sp<SkSurface> image) = 0;
+
+  virtual const TextureInfo getTexture(sk_sp<SkImage> image) = 0;
+
   virtual GrDirectContext *getDirectContext() = 0;
+#else
+  sk_sp<SkImage> makeImageFromNativeTexture(const TextureInfo &textureInfo,
+                                            int width, int height,
+                                            bool mipMapped) {
+    throw std::runtime_error(
+        "makeImageFromNativeTexture not implemented yet on Graphite");
+  }
+
+  const TextureInfo getTexture(sk_sp<SkSurface> image) {
+    throw std::runtime_error(
+        "getTexture(surface) not implemented yet on Graphite");
+  }
+
+  const TextureInfo getTexture(sk_sp<SkImage> image) {
+    throw std::runtime_error(
+        "getTexture(image) not implemented yet on Graphite");
+  }
 #endif
 
   virtual void releaseNativeBuffer(uint64_t pointer) = 0;
 
   virtual uint64_t makeNativeBuffer(sk_sp<SkImage> image) = 0;
-
-  virtual const TextureInfo getTexture(sk_sp<SkSurface> image) = 0;
-
-  virtual const TextureInfo getTexture(sk_sp<SkImage> image) = 0;
 
   virtual std::shared_ptr<RNSkVideo> createVideo(const std::string &url) = 0;
 
@@ -127,6 +145,21 @@ public:
    * Return the Platform specific font manager
    */
   virtual sk_sp<SkFontMgr> createFontMgr() = 0;
+
+  /**
+   * Return platform-specific system font family names that aren't
+   * enumerated by the standard font manager (e.g., .AppleSystemUIFont on iOS)
+   */
+  virtual std::vector<std::string> getSystemFontFamilies() { return {}; }
+
+  /**
+   * Resolve font family aliases to actual font family names.
+   * For example, "System" on iOS resolves to ".AppleSystemUIFont".
+   * Returns the input unchanged if no mapping exists.
+   */
+  virtual std::string resolveFontFamily(const std::string &familyName) {
+    return familyName;
+  }
 
   /**
    * Creates an skImage containing the screenshot of a native view and its

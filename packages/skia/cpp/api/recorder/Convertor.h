@@ -160,6 +160,22 @@ SkColor getPropertyValue(jsi::Runtime &runtime, const jsi::Value &value) {
       auto a = array.getValueAtIndex(runtime, 3).asNumber();
       return SkColorSetARGB(a * 255, r * 255, g * 255, b * 255);
     }
+
+    // Check for properties "0", "1", "2", "3" (even if not an array)
+    auto prop0 = jsi::PropNameID::forAscii(runtime, "0");
+    auto prop1 = jsi::PropNameID::forAscii(runtime, "1");
+    auto prop2 = jsi::PropNameID::forAscii(runtime, "2");
+    auto prop3 = jsi::PropNameID::forAscii(runtime, "3");
+    if (object.hasProperty(runtime, prop0) &&
+        object.hasProperty(runtime, prop1) &&
+        object.hasProperty(runtime, prop2) &&
+        object.hasProperty(runtime, prop3)) {
+      auto r = object.getProperty(runtime, prop0).asNumber();
+      auto g = object.getProperty(runtime, prop1).asNumber();
+      auto b = object.getProperty(runtime, prop2).asNumber();
+      auto a = object.getProperty(runtime, prop3).asNumber();
+      return SkColorSetARGB(a * 255, r * 255, g * 255, b * 255);
+    }
     jsi::ArrayBuffer buffer =
         object
             .getProperty(runtime, jsi::PropNameID::forAscii(runtime, "buffer"))
@@ -432,6 +448,38 @@ sk_sp<SkSVGDOM> getPropertyValue(jsi::Runtime &runtime,
   }
   throw std::runtime_error(
       "Expected SkSvgDom object or null for the svg property.");
+}
+
+template <>
+sk_sp<skottie::Animation> getPropertyValue(jsi::Runtime &runtime,
+                                           const jsi::Value &value) {
+  if (value.isObject() && value.asObject(runtime).isHostObject(runtime)) {
+    auto ptr = std::dynamic_pointer_cast<JsiSkSkottie>(
+        value.asObject(runtime).asHostObject(runtime));
+    if (ptr != nullptr) {
+      return ptr->getObject()->_animation;
+    }
+  } else if (value.isNull()) {
+    return nullptr;
+  }
+  throw std::runtime_error(
+      "Expected JsiSkSkottie object or null for the svg property.");
+}
+
+template <>
+sk_sp<SkImageFilter> getPropertyValue(jsi::Runtime &runtime,
+                                      const jsi::Value &value) {
+  if (value.isObject() && value.asObject(runtime).isHostObject(runtime)) {
+    auto ptr = std::dynamic_pointer_cast<JsiSkImageFilter>(
+        value.asObject(runtime).asHostObject(runtime));
+    if (ptr != nullptr) {
+      return ptr->getObject();
+    }
+  } else if (value.isNull()) {
+    return nullptr;
+  }
+  throw std::runtime_error(
+      "Expected JsiSkImageFilter object or null for the imageFilter property.");
 }
 
 template <>

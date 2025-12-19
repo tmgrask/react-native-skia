@@ -18,6 +18,8 @@ import type {
   SkRSXform,
   SkColor,
   SamplingOptions,
+  SkSkottieAnimation,
+  SkImageFilter,
 } from "../../skia/types";
 
 import type {
@@ -82,7 +84,7 @@ export interface PatchProps extends DrawingNodeProps {
     CubicBezierHandle,
     CubicBezierHandle,
     CubicBezierHandle,
-    CubicBezierHandle
+    CubicBezierHandle,
   ];
   texture?: readonly [SkPoint, SkPoint, SkPoint, SkPoint];
   blendMode?: SkEnum<typeof BlendMode>;
@@ -104,6 +106,11 @@ export interface ImageSVGProps extends DrawingNodeProps {
   width?: number;
   height?: number;
   rect?: SkRect;
+}
+
+export interface SkottieProps extends DrawingNodeProps {
+  animation: SkSkottieAnimation;
+  frame: number;
 }
 
 export interface PictureProps extends DrawingNodeProps {
@@ -163,4 +170,8 @@ export interface BoxShadowProps {
   blur: number;
   color?: Color;
   inner?: boolean;
+}
+
+export interface ImageFilterProps extends GroupProps {
+  filter: SkImageFilter;
 }

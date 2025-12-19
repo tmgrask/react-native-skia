@@ -1,4 +1,5 @@
 import { exit } from "process";
+import path from "path";
 
 import type { Platform, PlatformName } from "./skia-configuration";
 import {
@@ -6,6 +7,7 @@ import {
   configurations,
   copyHeaders,
   GRAPHITE,
+  MACCATALYST,
   OutFolder,
   PackageRoot,
   ProjectRoot,
@@ -66,7 +68,6 @@ const configurePlatform = async (
       target.options?.reduce((a, cur) => (a += `--${cur[0]}=${cur[1]} `), "") ||
       "";
 
-    // eslint-disable-next-line max-len
     const command = `${commandline} ${options} ${targetOptions} --script-executable=python3 --args='target_os="${target.platform}" target_cpu="${target.cpu}" ${common}${args}${targetArgs}'`;
     await runAsync(command, "⚙️");
     return true;
@@ -123,60 +124,155 @@ const buildXCFrameworks = () => {
   outputNames.forEach((name) => {
     console.log("Building XCFramework for " + name);
     const prefix = `${OutFolder}/${os}`;
-    $(`mkdir -p ${OutFolder}/${os}/tvsimulator`);
-    $(`rm -rf ${OutFolder}/${os}/tvsimulator/${name}`);
-    $(
-      // eslint-disable-next-line max-len
-      `lipo -create ${OutFolder}/${os}/x64-tvsimulator/${name} ${OutFolder}/${os}/arm64-tvsimulator/${name} -output ${OutFolder}/${os}/tvsimulator/${name}`
-    );
+
+    // Only create tvOS frameworks if GRAPHITE is not enabled
+    if (!GRAPHITE) {
+      $(`mkdir -p ${OutFolder}/${os}/tvsimulator`);
+      $(`rm -rf ${OutFolder}/${os}/tvsimulator/${name}`);
+      $(
+        `lipo -create ${OutFolder}/${os}/x64-tvsimulator/${name} ${OutFolder}/${os}/arm64-tvsimulator/${name} -output ${OutFolder}/${os}/tvsimulator/${name}`
+      );
+    }
+
     $(`mkdir -p ${OutFolder}/${os}/iphonesimulator`);
     $(`rm -rf ${OutFolder}/${os}/iphonesimulator/${name}`);
     $(
-      // eslint-disable-next-line max-len
       `lipo -create ${OutFolder}/${os}/x64-iphonesimulator/${name} ${OutFolder}/${os}/arm64-iphonesimulator/${name} -output ${OutFolder}/${os}/iphonesimulator/${name}`
     );
-	$(`mkdir -p ${OutFolder}/${os}/maccatalyst`);
-	$(`rm -rf ${OutFolder}/${os}/maccatalyst/${name}`);
-	$(
-		// eslint-disable-next-line max-len
-		`lipo -create ${OutFolder}/${os}/x64-maccatalyst/${name} ${OutFolder}/${os}/arm64-maccatalyst/${name} -output ${OutFolder}/${os}/maccatalyst/${name}`
-	);
+
+    // Only create macCatalyst frameworks if MACCATALYST is enabled
+    if (MACCATALYST) {
+      $(`mkdir -p ${OutFolder}/${os}/maccatalyst`);
+      $(`rm -rf ${OutFolder}/${os}/maccatalyst/${name}`);
+      $(
+        `lipo -create ${OutFolder}/${os}/x64-maccatalyst/${name} ${OutFolder}/${os}/arm64-maccatalyst/${name} -output ${OutFolder}/${os}/maccatalyst/${name}`
+      );
+    }
+
     $(`mkdir -p ${OutFolder}/${os}/macosx`);
     $(`rm -rf ${OutFolder}/${os}/macosx/${name}`);
     $(
-      // eslint-disable-next-line max-len
       `lipo -create ${OutFolder}/${os}/x64-macosx/${name} ${OutFolder}/${os}/arm64-macosx/${name} -output ${OutFolder}/${os}/macosx/${name}`
     );
     const [lib] = name.split(".");
     const dstPath = `${PackageRoot}/libs/${os}/${lib}.xcframework`;
-    $(
+
+    // Build the xcodebuild command conditionally based on GRAPHITE and MACCATALYST
+    let xcframeworkCmd =
       "xcodebuild -create-xcframework " +
-        `-library ${prefix}/arm64-iphoneos/${name} ` +
-        `-library ${prefix}/iphonesimulator/${name} ` +
+      `-library ${prefix}/arm64-iphoneos/${name} ` +
+      `-library ${prefix}/iphonesimulator/${name} `;
+
+    // Add tvOS libraries if not using GRAPHITE
+    if (!GRAPHITE) {
+      xcframeworkCmd +=
         `-library ${prefix}/arm64-tvos/${name} ` +
-        `-library ${prefix}/tvsimulator/${name} ` +
-        `-library ${prefix}/macosx/${name} ` +
-        `-library ${prefix}/maccatalyst/${name} ` +
-        ` -output ${dstPath}`
-    );
+        `-library ${prefix}/tvsimulator/${name} `;
+    }
+
+    // Add macOS library
+    xcframeworkCmd += `-library ${prefix}/macosx/${name} `;
+
+    // Add macCatalyst library if enabled
+    if (MACCATALYST) {
+      xcframeworkCmd += `-library ${prefix}/maccatalyst/${name} `;
+    }
+
+    // Add output path
+    xcframeworkCmd += ` -output ${dstPath}`;
+
+    $(xcframeworkCmd);
   });
 };
 
 (async () => {
+  // Parse command line arguments
+  const args = process.argv.slice(2);
+  const defaultTargets = Object.keys(configurations);
+  const targetSpecs = args.length > 0 ? args : defaultTargets;
+
+  // Parse target specifications (platform or platform-target format)
+  const buildTargets: { platform: PlatformName; targets?: string[] }[] = [];
+  const validPlatforms = Object.keys(configurations);
+
+  for (const spec of targetSpecs) {
+    if (spec.includes("-")) {
+      // Handle platform-target format (e.g., android-arm, android-arm64)
+      const [platform, target] = spec.split("-", 2);
+      if (!validPlatforms.includes(platform)) {
+        console.error(`❌ Invalid platform: ${platform}`);
+        console.error(`Valid platforms are: ${validPlatforms.join(", ")}`);
+        exit(1);
+      }
+
+      const platformConfig = configurations[platform as PlatformName];
+      if (!(target in platformConfig.targets)) {
+        console.error(
+          `❌ Invalid target '${target}' for platform '${platform}'`
+        );
+        console.error(
+          `Valid targets for ${platform}: ${Object.keys(
+            platformConfig.targets
+          ).join(", ")}`
+        );
+        exit(1);
+      }
+
+      // Find existing platform entry or create new one
+      let existingPlatform = buildTargets.find(
+        (bt) => bt.platform === platform
+      );
+      if (!existingPlatform) {
+        existingPlatform = { platform: platform as PlatformName, targets: [] };
+        buildTargets.push(existingPlatform);
+      }
+      if (!existingPlatform.targets) {
+        existingPlatform.targets = [];
+      }
+      existingPlatform.targets.push(target);
+    } else {
+      // Handle platform-only format (e.g., android, apple)
+      if (!validPlatforms.includes(spec)) {
+        console.error(`❌ Invalid platform: ${spec}`);
+        console.error(`Valid platforms are: ${validPlatforms.join(", ")}`);
+        exit(1);
+      }
+      buildTargets.push({ platform: spec as PlatformName });
+    }
+  }
+
+  console.log(`🎯 Building targets: ${targetSpecs.join(", ")}`);
+
   if (GRAPHITE) {
     console.log("🪨 Skia Graphite");
+    console.log(
+      "⚠️  Apple TV (tvOS) and MacCatalyst builds are skipped when GRAPHITE is enabled"
+    );
   } else {
     console.log("🐘 Skia Ganesh");
   }
-  ["ANDROID_NDK", "ANDROID_HOME"].forEach((name) => {
-    // Test for existence of Android SDK
-    if (!process.env[name]) {
-      console.log(`${name} not set.`);
-      exit(1);
-    } else {
-      console.log(`✅ ${name}`);
-    }
-  });
+
+  if (MACCATALYST) {
+    console.log("✅ macCatalyst builds are enabled");
+  } else {
+    console.log(
+      "⚠️  macCatalyst builds are disabled (set SK_MACCATALYST=1 to enable)"
+    );
+  }
+
+  // Check Android environment variables if android is in target platforms
+  const hasAndroid = buildTargets.some((bt) => bt.platform === "android");
+  if (hasAndroid) {
+    ["ANDROID_NDK", "ANDROID_HOME"].forEach((name) => {
+      // Test for existence of Android SDK
+      if (!process.env[name]) {
+        console.log(`${name} not set.`);
+        exit(1);
+      } else {
+        console.log(`✅ ${name}`);
+      }
+    });
+  }
 
   // Run glient sync
   console.log("Running gclient sync...");
@@ -184,25 +280,54 @@ const buildXCFrameworks = () => {
   process.chdir(SkiaSrc);
   $("PATH=../depot_tools/:$PATH python3 tools/git-sync-deps");
   console.log("gclient sync done");
+  if (GRAPHITE) {
+    console.log("Applying Graphite patches...");
+    $(`git reset --hard HEAD`);
+
+    // Apply arm64e simulator patch
+    const arm64ePatchFile = path.join(__dirname, "dawn-arm64e-simulator.patch");
+    $(`cd ${SkiaSrc} && git apply ${arm64ePatchFile}`);
+
+    // Fix Dawn ShaderModuleMTL.mm uint32 typo if it exists
+    const shaderModuleFile = `${SkiaSrc}/third_party/externals/dawn/src/dawn/native/metal/ShaderModuleMTL.mm`;
+    $(
+      `sed -i '' 's/uint32(bindingInfo\\.binding)/uint32_t(bindingInfo.binding)/g' ${shaderModuleFile}`
+    );
+
+    console.log("Patches applied successfully");
+  }
   $(`rm -rf ${PackageRoot}/libs`);
-  for (const key of mapKeys(configurations)) {
-    const configuration = configurations[key];
-    for (const target of mapKeys(configuration.targets)) {
-      await configurePlatform(key as PlatformName, configuration, target);
-      await buildPlatform(key as PlatformName, target);
+
+  // Build specified platforms and targets
+  for (const buildTarget of buildTargets) {
+    const { platform, targets } = buildTarget;
+    const configuration = configurations[platform];
+    console.log(`\n🔨 Building platform: ${platform}`);
+
+    const targetsToProcess = targets || mapKeys(configuration.targets);
+
+    for (const target of targetsToProcess) {
+      await configurePlatform(platform, configuration, target);
+      await buildPlatform(platform, target);
       process.chdir(ProjectRoot);
-      if (key === "android") {
+      if (platform === "android") {
         copyLib(
-          key,
+          platform,
           target,
           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-expect-error
+          // @ts-ignore
           configuration.targets[target].output,
           configuration.outputNames
         );
       }
     }
   }
-  buildXCFrameworks();
+
+  // Only build XCFrameworks if apple platform is included
+  const hasApple = buildTargets.some((bt) => bt.platform === "apple");
+  if (hasApple) {
+    buildXCFrameworks();
+  }
+
   copyHeaders();
 })();

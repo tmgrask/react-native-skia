@@ -6,7 +6,8 @@
 MetalWindowContext::MetalWindowContext(GrDirectContext *directContext,
                                        id<MTLDevice> device,
                                        id<MTLCommandQueue> commandQueue,
-                                       CALayer *layer, int width, int height)
+                                       CALayer *layer, int width, int height,
+                                       bool useP3ColorSpace)
     : _directContext(directContext), _commandQueue(commandQueue) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
@@ -24,11 +25,25 @@ MetalWindowContext::MetalWindowContext(GrDirectContext *directContext,
   _layer.contentsGravity = kCAGravityBottomLeft;
   _layer.drawableSize = CGSizeMake(width, height);
   BOOL supportsWideColor = NO;
-  if (@available(iOS 10.0, *)) {
-    supportsWideColor = [UIScreen mainScreen].traitCollection.displayGamut == UIDisplayGamutP3;
+  if (useP3ColorSpace) {
+#if !TARGET_OS_OSX
+    if (@available(iOS 10.0, *)) {
+      supportsWideColor = [UIScreen mainScreen].traitCollection.displayGamut ==
+                          UIDisplayGamutP3;
+    }
+#else
+    if (@available(macOS 10.12, *)) {
+      NSScreen *screen = [NSScreen mainScreen];
+      NSColorSpace *displayP3 = [NSColorSpace displayP3ColorSpace];
+      if (screen.colorSpace && displayP3) {
+        supportsWideColor = [screen.colorSpace isEqual:displayP3];
+      }
+    }
+#endif // !TARGET_OS_OSX
   }
   if (supportsWideColor) {
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
+    CGColorSpaceRef colorSpace =
+        CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
     _layer.colorspace = colorSpace;
     CGColorSpaceRelease(colorSpace);
   }

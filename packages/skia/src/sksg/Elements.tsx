@@ -51,11 +51,12 @@ import type {
   ChildrenProps,
   MorphologyImageFilterProps,
   BlendProps,
+  SkottieProps,
+  ImageFilterProps,
 } from "../dom/types";
 import type { SkiaProps } from "../renderer";
 
 declare module "react" {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace JSX {
     interface IntrinsicElements {
       skGroup: SkiaProps<GroupProps>;
@@ -80,6 +81,7 @@ declare module "react" {
       skTextBlob: SkiaProps<TextBlobProps>;
       skGlyphs: SkiaProps<GlyphsProps>;
       skDiffRect: SkiaProps<DiffRectProps>;
+      skSkottie: SkiaProps<SkottieProps>;
       skPicture: SkiaProps<PictureProps>;
       skImageSVG: SkiaProps<ImageSVGProps>;
 
@@ -87,6 +89,7 @@ declare module "react" {
       skBlurMaskFilter: SkiaProps<BlurMaskFilterProps>;
 
       // ImageFilters
+      skImageFilter: SkiaProps<ImageFilterProps>;
       skBlendImageFilter: SkiaProps<BlendImageFilterProps>;
       skBlurImageFilter: SkiaProps<BlurImageFilterProps>;
       skOffsetImageFilter: SkiaProps<OffsetImageFilterProps>;

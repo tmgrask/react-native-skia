@@ -19,6 +19,12 @@ export const HomeScreen = () => {
         testId="API"
       />
       <HomeScreenButton
+        title="💧 Liquid Glass"
+        description="Liquid Glass examples"
+        route="LiquidGlass"
+        testId="LiquidGlass"
+      />
+      <HomeScreenButton
         title="🎥 Reanimated"
         description="Reanimated & Gesture Handler"
         route="Reanimated"
@@ -116,6 +122,11 @@ export const HomeScreen = () => {
       />
       <HomeScreenButton title="📹 Video" description="Video" route="Video" />
       <HomeScreenButton title="💬 Chat" description="Chat" route="Chat" />
+      <HomeScreenButton
+        title="🖼 Pictures"
+        description="Animated circle trail using Pictures"
+        route="Pictures"
+      />
     </ScrollView>
   );
 };
